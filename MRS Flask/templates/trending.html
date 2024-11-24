@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trending Movies</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-image: url('/static/images/reco.jpg'); /* Replace with your image URL */
+            background-size: cover;
+            background-position: center;
+            background-attachment: fixed; /* Keeps the background fixed as content scrolls */
+        }
+        /* Loading spinner styles */
+        .spinner {
+            border: 4px solid #f3f3f3; /* Light grey */
+            border-top: 4px solid #3498db; /* Blue */
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto; /* Center the spinner */
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+    <script>
+        function logout() {
+            // Clear all cookies by setting them to expire
+            document.cookie.split(";").forEach(function(cookie) {
+                var cookieName = cookie.split("=")[0].trim();
+                document.cookie = cookieName + '=;expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+            });
+            alert("User Logged Out!!");
+            // Redirect to home page
+            window.location = '/';
+        }
+    </script>
+</head>
+<body class="bg-white">
+    <!-- Navbar -->
+    <nav class="shadow-2xl py-4">
+        <div class="container mx-auto flex justify-between items-center px-6">
+            <div class="text-2xl font-bold text-white">MovieRecommender</div>
+            <ul class="flex space-x-4">
+                <li><a href="/recommendpage" class="text-white hover:text-yellow-200">Recommend</a></li>
+                <li><a href="/mymoviespage" class="text-white hover:text-yellow-200">My Movies</a></li>
+                <li><a href="/trendingpage" class="text-white hover:text-yellow-200">Trending Movies</a></li>
+                <li><a onclick="logout()" class="text-white hover:text-yellow-200 cursor-pointer">Logout</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <div id="root" class="min-h-screen flex flex-col items-center justify-center py-10">
+        <h1 class="text-3xl font-bold mb-8 text-white">Top 10 Trending Movies</h1>
+        <div id="loading" class="text-center text-white">
+            <p>Loading trending movies...</p>
+            <div class="spinner"></div> <!-- Loading spinner -->
+        </div>
+        <div id="moviesContainer" class="w-full max-w-5xl space-y-6 hidden"></div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react/17.0.2/umd/react.production.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/17.0.2/umd/react-dom.production.min.js"></script>
+    <script>
+        const API_KEY = 'a061bdf9153fa98c85951ef40960972d'; // Your TMDB API Key
+        const IMAGE_URL = 'https://image.tmdb.org/t/p/w500';
+
+        const fetchTrendingMovies = async () => {
+            const response = await fetch(`https://api.themoviedb.org/3/trending/movie/week?api_key=${API_KEY}`);
+            const data = await response.json();
+            const movies = data.results.slice(0, 10);
+
+            const moviesContainer = document.getElementById('moviesContainer');
+            const loadingText = document.getElementById('loading');
+            loadingText.classList.add('hidden');
+            moviesContainer.classList.remove('hidden');
+
+            movies.forEach(async (movie) => {
+                const detailsResponse = await fetch(`https://api.themoviedb.org/3/movie/${movie.id}?api_key=${API_KEY}&language=en-US`);
+                const detailsData = await detailsResponse.json();
+
+                const movieElement = document.createElement('div');
+                movieElement.className = 'bg-white shadow-md rounded-lg flex overflow-hidden w-full';
+                movieElement.innerHTML = `
+                    <img src="${IMAGE_URL}${movie.poster_path}" alt="${movie.title}" class="w-48 h-auto object-cover">
+                    <div class="p-4 flex flex-col justify-between">
+                        <h2 class="text-xl font-bold">${movie.title}</h2>
+                        <p class="text-gray-500">Release Date: ${movie.release_date}</p>
+                        <p class="text-gray-700 mt-2">
+                            ${detailsData.overview.length > 200 ? detailsData.overview.substring(0, 200) + '...' : detailsData.overview}
+                        </p>
+                        <a href="https://www.imdb.com/title/${detailsData.imdb_id}" target="_blank" rel="noopener noreferrer" class="mt-4 text-blue-500 hover:underline">View on IMDb</a>
+                    </div>
+                `;
+                moviesContainer.appendChild(movieElement);
+            });
+        };
+
+        fetchTrendingMovies();
+    </script>
+      <!-- Footer -->
+    <footer class="shadow-2xl text-white py-4 mt-8">
+        <div class="container mx-auto text-center">
+            <p>&copy;Movie Recommendation System. All rights reserved.</p>
+        </div>
+    </footer>
+</body>
+</html>

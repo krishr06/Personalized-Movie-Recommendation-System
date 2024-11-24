@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - Movie Recommendation System</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <style>
+        /* Slideshow container */
+        .slideshow-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            z-index: -1;
+            display: flex;
+        }
+
+        /* Slide wrapper to contain all images in a row */
+        .slides {
+            display: flex;
+            transition: transform 1s ease;
+            width: 300%; /* Adjust based on the number of slides */
+        }
+
+        /* Each slide styling */
+        .slideshow-image {
+            width: 100%;
+            height: 100vh;
+            flex-shrink: 0;
+            object-fit: cover;
+        }
+
+        /* Glassmorphism effect */
+        .glass {
+            background: rgba(255, 255, 255, 0.2);
+            backdrop-filter: blur(10px);
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
+            padding: 1.5rem;
+        }
+
+        /* Glass button */
+        .glass-button {
+            background: rgba(255, 255, 255, 0.2);
+            backdrop-filter: blur(10px);
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
+            transition: background 0.3s ease;
+        }
+
+        .glass-button:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+    </style>
+</head>
+<body class="relative bg-white">
+
+    <!-- Slideshow Background -->
+    <div class="slideshow-container">
+        <div class="slides" id="slides">
+            <img src="/static/images/l1.jpg" class="slideshow-image">
+            <img src="/static/images/l2.jpg" class="slideshow-image">
+            <img src="/static/images/l3.jpg" class="slideshow-image">
+        </div>
+    </div>
+
+    <!-- Navbar -->
+    <nav class="bg-gray-900 shadow-2xl py-4 relative z-10">
+        <div class="container mx-auto flex justify-between items-center px-6">
+            <div class="text-2xl font-bold text-white">MovieRecommender</div>
+            <ul class="flex space-x-4">
+                <li><a href="/" class="text-white hover:text-yellow-200">Home</a></li>
+                <li><a href="/loginpage" class="text-white hover:text-yellow-200">Login</a></li>
+                <li><a href="/registerpage" class="text-white hover:text-yellow-200">Register</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <!-- Login Form -->
+    <div class="flex items-center justify-center min-h-screen pt-24 pb-12 relative z-10">
+        <div class="glass w-96">
+            <h2 class="text-2xl font-bold text-gray-900 mb-6 text-center">Login</h2>
+            <form id="login-form" class="flex flex-col space-y-4">
+                <div class="border-b border-gray-300 p-2 text-gray-900 focus-within:border-blue-500">
+                    <input
+                        type="text"
+                        id="username"
+                        placeholder="Username"
+                        required
+                        class="w-full bg-transparent border-none focus:outline-none placeholder-gray-400"
+                    />
+                </div>
+                <div class="relative border-b border-gray-300 p-2 text-gray-900 focus-within:border-blue-500">
+                    <input
+                        type="password"
+                        id="password"
+                        placeholder="Password"
+                        required
+                        class="w-full bg-transparent border-none focus:outline-none placeholder-gray-400"
+                    />
+                    <button
+                        type="button"
+                        class="absolute right-2 top-1 text-gray-600"
+                        onclick="togglePasswordVisibility('password', this)"
+                    >
+                        Show
+                    </button>
+                </div>
+                <button
+                    type="submit"
+                    class="glass-button w-full text-white py-2 mt-4 font-semibold"
+                >
+                    Login
+                </button>
+            </form>
+            <p class="mt-4 text-center text-gray-900" id="message"></p>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="text-white py-4 bg-gray-900 relative z-10">
+        <div class="container mx-auto text-center">
+            <p>&copy; Movie Recommendation System. All rights reserved.</p>
+        </div>
+    </footer>
+
+    <script>
+        // Toggle password visibility
+        function togglePasswordVisibility(inputId, button) {
+            const passwordInput = document.getElementById(inputId);
+            const type = passwordInput.getAttribute('type') === 'password' ? 'text' : 'password';
+            passwordInput.setAttribute('type', type);
+            button.textContent = type === 'password' ? 'Show' : 'Hide';
+        }
+
+        // Slideshow variables
+        let slideIndex = 0;
+        const totalSlides = 3;
+        const slidesContainer = document.getElementById("slides");
+
+        // Function to slide images
+        function showSlides() {
+            slideIndex = (slideIndex + 1) % totalSlides;
+            slidesContainer.style.transform = `translateX(-${slideIndex * 100}%)`;
+            setTimeout(showSlides, 5000); // Change slide every 5 seconds
+        }
+
+        // Initialize slideshow
+        showSlides();
+
+        document.getElementById('login-form').addEventListener('submit', async function(event) {
+            event.preventDefault(); // Prevent the default form submission
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+
+            const response = await fetch('/login', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ username, password }),
+            });
+
+            const result = await response.json();
+            const messageElement = document.getElementById('message');
+
+            if (response.ok) {
+                messageElement.textContent = result.message;
+                messageElement.className = 'text-green-500';
+
+                // Save the logged-in user to cookies
+                document.cookie = `username=${username}; path=/; max-age=3600`; // Cookie expires in 1 hour
+
+                // Redirect to another page on successful login
+                setTimeout(() => {
+                    window.location.href = '/recommendpage'; 
+                }, 2000);
+            } else {
+                messageElement.textContent = result.message;
+                messageElement.className = 'text-red-500';
+            }
+        });
+
+    </script>
+
+</body>
+</html>

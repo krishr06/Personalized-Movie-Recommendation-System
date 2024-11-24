@@ -1,0 +1,290 @@
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Recommend Movies</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <style>
+         body {
+            background-image: url('/static/images/trending.jpg'); /* Replace with your image URL */
+            background-size: cover;
+            background-position: center;
+            background-attachment: fixed; /* Keeps the background fixed as content scrolls */
+        }
+        #movie-container {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr); /* 3 columns */
+    gap: 20px;
+}
+
+.movie-card {
+    height: 100%; /* Ensures cards have equal height */
+}
+
+/* Optional: Responsive design for smaller screens */
+@media (max-width: 768px) {
+    #movie-container {
+        grid-template-columns: repeat(2, 1fr); /* 2 columns on small screens */
+    }
+}
+
+@media (max-width: 480px) {
+    #movie-container {
+        grid-template-columns: 1fr; /* 1 column on extra small screens */
+    }
+}
+
+    </style>
+    <script>
+        const API_KEY = 'a061bdf9153fa98c85951ef40960972d';
+        
+        // Function to get movie recommendations based on selected genres
+        async function getRecommendations() {
+            const selectedGenres = Array.from(document.querySelectorAll('.genre-selected')).map(el => el.textContent);
+            const movieContainer = document.getElementById('movie-container');
+            
+            // Show loading animation
+            movieContainer.innerHTML = `
+            <div class="flex justify-center items-center">
+                <div class="animate-spin rounded-full h-16 w-16 border-t-4 border-blue-500"></div>
+                <p class="text-gray-500 ml-4">Loading...</p>
+            </div>
+        `;
+            
+            const response = await fetch('/recommendations', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ genres: selectedGenres }),
+            });
+            
+            const data = await response.json();
+            
+            if (data.recommendations) {
+                displayMovieDetails(data.recommendations);
+            } else {
+                alert('No recommendations found.');
+                movieContainer.innerHTML = ''; // Clear loading animation
+            }
+        }
+        
+        // Function to fetch additional movie details from TMDB using the movie name
+        async function fetchMovieDetails(movie) {
+            try {
+                // First, fetch the movie details using the movie name
+                const tmdbResponse = await fetch(`https://api.themoviedb.org/3/search/movie?api_key=${API_KEY}&query=${encodeURIComponent(movie.movie_name)}&language=en-US`);
+                if (!tmdbResponse.ok) {
+                    throw new Error(`Error fetching movie details: ${tmdbResponse.status}`);
+                }
+                const searchResults = await tmdbResponse.json();
+                
+                // If no results found, return null
+                if (!searchResults.results || searchResults.results.length === 0) {
+                    return null;
+                }
+                
+                const movieDetails = searchResults.results[0]; // Get the first search result
+                
+                // Now fetch detailed information including credits and providers
+                const detailsResponse = await fetch(`https://api.themoviedb.org/3/movie/${movieDetails.id}?api_key=${API_KEY}&language=en-US&append_to_response=credits,videos,watch/providers`);
+                if (!detailsResponse.ok) {
+                    throw new Error(`Error fetching additional details: ${detailsResponse.status}`);
+                }
+                
+                const detailsData = await detailsResponse.json();
+                
+                return {
+                    id: detailsData.id,
+                    movie_name: detailsData.title,
+                    genre: detailsData.genres.map(g => g.name).join(', '), // Get the genre names
+                    description: detailsData.overview || "No overview available.",
+                    cast: detailsData.credits.cast.slice(0, 5).map(person => person.name).join(', '),
+                    crew: detailsData.credits.crew.slice(0, 5).map(person => `${person.job}: ${person.name}`).join(', '),
+                    providers: detailsData['watch/providers'] && detailsData['watch/providers'].results.US && detailsData['watch/providers'].results.US.flatrate
+                    ? detailsData['watch/providers'].results.US.flatrate.map(company => company.provider_name).join(', ')
+                    : "No streaming providers available.",
+                    release_date: detailsData.release_date || "Release date not available.",
+                    trailer: detailsData.videos.results.find(video => video.type === 'Trailer' && video.site === 'YouTube')
+                    ? `${YOUTUBE_URL}${detailsData.videos.results[0].key}`
+                    : 'No trailer available',
+                    poster_path: movieDetails.poster_path // Ensure poster path is included
+                };
+            } catch (error) {
+                console.error(error); // Log the error for debugging
+                return null; // Return null if there was an error
+            }
+        }
+        
+function likeMovie(movieId) {
+    const username = getCookie('username');  
+    fetch('/movie/like', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ movie_id: movieId, username: username }),
+    })
+    .then(response => response.json())
+    .then(data => {
+        alert(data.message);
+    })
+    .catch(error => console.error('Error:', error));
+}
+
+function dislikeMovie(movieId) {
+    const username = getCookie('username'); 
+    fetch('/movie/dislike', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ movie_id: movieId, username: username }),
+    })
+    .then(response => response.json())
+    .then(data => {
+        alert(data.message);
+    })
+    .catch(error => console.error('Error:', error));
+}
+
+function getCookie(name) {
+    const value = `; ${document.cookie}`;
+    const parts = value.split(`; ${name}=`);
+    if (parts.length === 2) return parts.pop().split(';').shift();
+    return null;
+}
+const YOUTUBE_URL = 'https://www.youtube.com/watch?v=';
+// Function to display the fetched movie details on the page
+// Function to add line breaks for long strings
+function addLineBreaks(text) {
+    const maxLineLength = 70; // Define max line length
+    let formattedText = '';
+    while (text.length > maxLineLength) {
+        // Split text and add a line break
+        formattedText += text.slice(0, maxLineLength) + '<br>';
+        text = text.slice(maxLineLength);
+    }
+    formattedText += text; // Add any remaining text
+    return formattedText;
+}
+
+async function displayMovieDetails(movieDetails) {
+    const movieContainer = document.getElementById('movie-container');
+    movieContainer.innerHTML = ''; // Clear previous details
+    let moviecount = 0;
+
+    for (const movie of movieDetails) {
+        const movieData = await fetchMovieDetails(movie);
+        if (movieData && moviecount < 6) { // Changed to 6 for 3x2 layout
+            const movieElement = document.createElement('div');
+            movieElement.className = 'bg-white rounded-lg shadow-md p-4 movie-card'; // Added movie-card class for styling
+            movieElement.innerHTML = `
+                <h2 class="font-bold text-lg">${movieData.movie_name}</h2>
+                <img src="https://image.tmdb.org/t/p/w500${movieData.poster_path}" alt="${movieData.movie_name} Poster" class="mb-2 rounded">
+                <p class="text-gray-500">Movie ID: ${movie.id}</p> 
+                <p class="text-gray-500">Genre: ${addLineBreaks(movie.genre)}</p>
+                <p class="text-gray-500">Overview: ${addLineBreaks(movieData.description)}</p>
+                <p class="text-gray-500">Cast: ${addLineBreaks(movieData.cast)}</p>
+                <p class="text-gray-500">Crew: ${addLineBreaks(movieData.crew)}</p>
+                <p class="text-gray-500">Available on: ${addLineBreaks(movieData.providers)}</p>
+                <p class="text-gray-500">Release Date: ${addLineBreaks(movieData.release_date)}</p>
+                <p class="text-gray-500">Trailer: <a href="${movieData.trailer}" target="_blank" class="text-blue-400">Link</a></p>
+                <button class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition duration-300" 
+                        onclick="likeMovie('${movie.id}', '${movieData.genre}')" 
+                        data-genre="${movieData.genre}">
+                    Like
+                </button>
+                <button class="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600 transition duration-300 ml-2" 
+                        onclick="dislikeMovie('${movie.id}')">
+                    Dislike
+                </button>
+            `;
+
+            movieContainer.appendChild(movieElement);
+            moviecount++;
+        } else {
+            console.log(`Skipping movie with name: ${movie.movie_name} due to fetch error.`);
+        }
+    }
+}
+
+
+
+
+        // Function to toggle genre selection
+        function selectGenre(event) {
+            event.target.classList.toggle('genre-selected');
+            event.target.classList.toggle('bg-gray-500'); // Change color when selected
+            event.target.classList.toggle('text-white'); // Change text color when selected
+            event.target.classList.toggle('bg-gray-800'); // Revert to original when unselected
+        }
+        
+        function logout() {
+            // Clear all cookies by setting them to expire
+            document.cookie.split(";").forEach(function(cookie) {
+                var cookieName = cookie.split("=")[0].trim();
+                document.cookie = cookieName + '=;expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+            });
+            alert("User Logged Out!!");
+            // Redirect to home page
+            window.location = '/';
+        }
+    </script>
+</head>
+
+<body>
+    <!-- Navbar -->
+    <nav class="shadow-2xl py-4">
+        <div class="container mx-auto flex justify-between items-center px-6">
+            <div class="text-2xl font-bold text-white">MovieRecommender</div>
+            <ul class="flex space-x-4">
+                <li><a href="/recommendpage" class="text-white hover:text-yellow-200">Recommend</a></li>
+                <li><a href="/mymoviespage" class="text-white hover:text-yellow-200">My Movies</a></li>
+                <li><a href="/trendingpage" class="text-white hover:text-yellow-200">Trending Movies</a></li>
+                <li><a onclick="logout()" class="text-white hover:text-yellow-200 cursor-pointer">Logout</a></li>
+            </ul>
+        </div>
+    </nav>
+    <div class=" flex flex-col items-center justify-center min-h-screen">
+        <h1 class="text-3xl font-bold mb-6 pt-10 text-white">Select Genres</h1>
+        <div class="flex flex-wrap justify-center mb-4 mx-[10%]">
+            <!-- Genre Selection -->
+<div class="p-4 m-2 cursor-pointer rounded bg-white border border-black text-black hover:bg-gray-800 hover:text-white transition duration-300 border border-gray-800" onclick="selectGenre(event)">Action</div>
+<div class="p-4 m-2 cursor-pointer rounded bg-white border border-black text-black hover:bg-gray-800 hover:text-white transition duration-300 border border-gray-800" onclick="selectGenre(event)">Adventure</div>
+<div class="p-4 m-2 cursor-pointer rounded bg-white border border-black text-black hover:bg-gray-800 hover:text-white transition duration-300 border border-gray-800" onclick="selectGenre(event)">Animation</div>
+<div class="p-4 m-2 cursor-pointer rounded bg-white border border-black text-black hover:bg-gray-800 hover:text-white transition duration-300 border border-gray-800" onclick="selectGenre(event)">Biography</div>
+<div class="p-4 m-2 cursor-pointer rounded bg-white border border-black text-black hover:bg-gray-800 hover:text-white transition duration-300 border border-gray-800" onclick="selectGenre(event)">Comedy</div>
+<div class="p-4 m-2 cursor-pointer rounded bg-white border border-black text-black hover:bg-gray-800 hover:text-white transition duration-300 border border-gray-800" onclick="selectGenre(event)">Crime</div>
+<div class="p-4 m-2 cursor-pointer rounded bg-white border border-black text-black hover:bg-gray-800 hover:text-white transition duration-300 border border-gray-800" onclick="selectGenre(event)">Documentary</div>
+<div class="p-4 m-2 cursor-pointer rounded bg-white border border-black text-black hover:bg-gray-800 hover:text-white transition duration-300 border border-gray-800" onclick="selectGenre(event)">Drama</div>
+<div class="p-4 m-2 cursor-pointer rounded bg-white border border-black text-black hover:bg-gray-800 hover:text-white transition duration-300 border border-gray-800" onclick="selectGenre(event)">Family</div>
+<div class="p-4 m-2 cursor-pointer rounded bg-white border border-black text-black hover:bg-gray-800 hover:text-white transition duration-300 border border-gray-800" onclick="selectGenre(event)">Fantasy</div>
+<div class="p-4 m-2 cursor-pointer rounded bg-white border border-black text-black hover:bg-gray-800 hover:text-white transition duration-300 border border-gray-800" onclick="selectGenre(event)">Fiction</div>
+<div class="p-4 m-2 cursor-pointer rounded bg-white border border-black text-black hover:bg-gray-800 hover:text-white transition duration-300 border border-gray-800" onclick="selectGenre(event)">Foreign</div>
+<div class="p-4 m-2 cursor-pointer rounded bg-white border border-black text-black hover:bg-gray-800 hover:text-white transition duration-300 border border-gray-800" onclick="selectGenre(event)">History</div>
+<div class="p-4 m-2 cursor-pointer rounded bg-white border border-black text-black hover:bg-gray-800 hover:text-white transition duration-300 border border-gray-800" onclick="selectGenre(event)">Horror</div>
+<div class="p-4 m-2 cursor-pointer rounded bg-white border border-black text-black hover:bg-gray-800 hover:text-white transition duration-300 border border-gray-800" onclick="selectGenre(event)">Music</div>
+<div class="p-4 m-2 cursor-pointer rounded bg-white border border-black text-black hover:bg-gray-800 hover:text-white transition duration-300 border border-gray-800" onclick="selectGenre(event)">Musical</div>
+<div class="p-4 m-2 cursor-pointer rounded bg-white border border-black text-black hover:bg-gray-800 hover:text-white transition duration-300 border border-gray-800" onclick="selectGenre(event)">Mystery</div>
+<div class="p-4 m-2 cursor-pointer rounded bg-white border border-black text-black hover:bg-gray-800 hover:text-white transition duration-300 border border-gray-800" onclick="selectGenre(event)">Romance</div>
+<div class="p-4 m-2 cursor-pointer rounded bg-white border border-black text-black hover:bg-gray-800 hover:text-white transition duration-300 border border-gray-800" onclick="selectGenre(event)">Sci-Fi</div>
+<div class="p-4 m-2 cursor-pointer rounded bg-white border border-black text-black hover:bg-gray-800 hover:text-white transition duration-300 border border-gray-800" onclick="selectGenre(event)">Science</div>
+<div class="p-4 m-2 cursor-pointer rounded bg-white border border-black text-black hover:bg-gray-800 hover:text-white transition duration-300 border border-gray-800" onclick="selectGenre(event)">Sport</div>
+<div class="p-4 m-2 cursor-pointer rounded bg-white border border-black text-black hover:bg-gray-800 hover:text-white transition duration-300 border border-gray-800" onclick="selectGenre(event)">TV</div>
+<div class="p-4 m-2 cursor-pointer rounded bg-white border border-black text-black hover:bg-gray-800 hover:text-white transition duration-300 border border-gray-800" onclick="selectGenre(event)">Thriller</div>
+<div class="p-4 m-2 cursor-pointer rounded bg-white border border-black text-black hover:bg-gray-800 hover:text-white transition duration-300 border border-gray-800" onclick="selectGenre(event)">War</div>
+<div class="p-4 m-2 cursor-pointer rounded bg-white border border-black text-black hover:bg-gray-800 hover:text-white transition duration-300 border border-gray-800" onclick="selectGenre(event)">Western</div>
+
+        </div>
+        <button class="bg-blue-500 text-white rounded px-4 py-2" onclick="getRecommendations()">Get Recommendations</button>
+        <div id="movie-container" class="mt-10 mx-[10%]"></div>
+    </div>
+     <!-- Footer -->
+     <footer class="shadow-2xl text-white py-4 mt-8">
+        <div class="container mx-auto text-center">
+            <p>&copy;Movie Recommendation System. All rights reserved.</p>
+        </div>
+    </footer>
+</body>
+</html>
